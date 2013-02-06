@@ -233,13 +233,6 @@ int suspend_devices_and_enter(suspend_state_t state)
 		return -ENOSYS;
 
 	trace_machine_suspend(state);
-
-#ifdef CONFIG_SUSPEND_ONLY_ALLOW_WFI
-	printk("PM: only allow wfi\n");
-	pm_qos_add_request(&pm_qos_req_dma, PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
-	pm_qos_update_request(&pm_qos_req_dma, 2);
-#endif
-
 	if (need_suspend_ops(state) && suspend_ops->begin) {
 		error = suspend_ops->begin(state);
 		if (error)
