@@ -55,6 +55,8 @@ struct msm_ipc_router_smd_xprt {
 	int ss_reset;
 	void *pil;
 	struct completion sft_close_complete;
+	unsigned xprt_version;
+	unsigned xprt_option;
 };
 
 struct msm_ipc_router_smd_xprt_work {

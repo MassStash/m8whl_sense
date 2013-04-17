@@ -290,7 +290,7 @@ struct rr_packet *clone_pkt(struct rr_packet *pkt)
 		return NULL;
 	}
 	memcpy(&(cloned_pkt->hdr), &(pkt->hdr), sizeof(struct rr_header_v1));
-	
+	/* TODO: Copy optional headers, if available */
 
 	pkt_fragment_q = kmalloc(sizeof(struct sk_buff_head), GFP_KERNEL);
 	if (!pkt_fragment_q) {
@@ -316,7 +316,7 @@ fail_clone:
 		kfree_skb(temp_skb);
 	}
 	kfree(pkt_fragment_q);
-	
+	/* TODO: Free optional headers, if present */
 	kfree(cloned_pkt);
 	return NULL;
 }
@@ -355,7 +355,7 @@ void release_pkt(struct rr_packet *pkt)
 		kfree_skb(temp_skb);
 	}
 	kfree(pkt->pkt_fragment_q);
-	
+	/* TODO: Free Optional headers, if present */
 	kfree(pkt);
 	return;
 }
@@ -463,6 +463,13 @@ void msm_ipc_router_free_skb(struct sk_buff_head *skb_head)
 	kfree(skb_head);
 }
 
+/**
+ * extract_header_v1() - Extract IPC Router header of version 1
+ * @pkt: Packet structure into which the header has to be extraced.
+ * @skb: SKB from which the header has to be extracted.
+ *
+ * @return: 0 on success, standard Linux error codes on failure.
+ */
 static int extract_header_v1(struct rr_packet *pkt, struct sk_buff *skb)
 {
 	if (!pkt || !skb) {
@@ -476,6 +483,13 @@ static int extract_header_v1(struct rr_packet *pkt, struct sk_buff *skb)
 	return 0;
 }
 
+/**
+ * extract_header_v2() - Extract IPC Router header of version 2
+ * @pkt: Packet structure into which the header has to be extraced.
+ * @skb: SKB from which the header has to be extracted.
+ *
+ * @return: 0 on success, standard Linux error codes on failure.
+ */
 static int extract_header_v2(struct rr_packet *pkt, struct sk_buff *skb)
 {
 	struct rr_header_v2 *hdr;
@@ -499,6 +513,15 @@ static int extract_header_v2(struct rr_packet *pkt, struct sk_buff *skb)
 	return 0;
 }
 
+/**
+ * extract_header() - Extract IPC Router header
+ * @pkt: Packet from which the header has to be extraced.
+ *
+ * @return: 0 on success, standard Linux error codes on failure.
+ *
+ * This function will check if the header version is v1 or v2 and invoke
+ * the corresponding helper function to extract the IPC Router header.
+ */
 static int extract_header(struct rr_packet *pkt)
 {
 	struct sk_buff *temp_skb;
@@ -519,7 +542,7 @@ static int extract_header(struct rr_packet *pkt)
 		ret = extract_header_v1(pkt, temp_skb);
 	} else if (temp_skb->data[0] == IPC_ROUTER_V2) {
 		ret = extract_header_v2(pkt, temp_skb);
-		
+		/* TODO: Extract optional headers if present */
 	} else {
 		pr_err("%s: Invalid Header version %02x\n",
 			__func__, temp_skb->data[0]);
@@ -530,6 +553,18 @@ static int extract_header(struct rr_packet *pkt)
 	return ret;
 }
 
+/**
+ * calc_tx_header_size() - Calculate header size to be reserved in SKB
+ * @pkt: Packet in which the space for header has to be reserved.
+ * @dst_xprt_info: XPRT through which the destination is reachable.
+ *
+ * @return: required header size on success,
+ *          starndard Linux error codes on failure.
+ *
+ * This function is used to calculate the header size that has to be reserved
+ * in a transmit SKB. The header size is calculated based on the XPRT through
+ * which the destination node is reachable.
+ */
 static int calc_tx_header_size(struct rr_packet *pkt,
 			       struct msm_ipc_router_xprt_info *dst_xprt_info)
 {
@@ -562,7 +597,7 @@ static int calc_tx_header_size(struct rr_packet *pkt,
 	} else if (xprt_version == IPC_ROUTER_V2) {
 		pkt->hdr.version = IPC_ROUTER_V2;
 		hdr_size = sizeof(struct rr_header_v2);
-		
+		/* TODO: Calculate optional header length, if present */
 	} else {
 		pr_err("%s: Invalid xprt_version %d\n",
 			__func__, xprt_version);
@@ -572,6 +607,13 @@ static int calc_tx_header_size(struct rr_packet *pkt,
 	return hdr_size;
 }
 
+/**
+ * prepend_header_v1() - Prepend IPC Router header of version 1
+ * @pkt: Packet structure which contains the header info to be prepended.
+ * @hdr_size: Size of the header
+ *
+ * @return: 0 on success, standard Linux error codes on failure.
+ */
 static int prepend_header_v1(struct rr_packet *pkt, int hdr_size)
 {
 	struct sk_buff *temp_skb;
@@ -605,6 +647,13 @@ static int prepend_header_v1(struct rr_packet *pkt, int hdr_size)
 	return 0;
 }
 
+/**
+ * prepend_header_v2() - Prepend IPC Router header of version 2
+ * @pkt: Packet structure which contains the header info to be prepended.
+ * @hdr_size: Size of the header
+ *
+ * @return: 0 on success, standard Linux error codes on failure.
+ */
 static int prepend_header_v2(struct rr_packet *pkt, int hdr_size)
 {
 	struct sk_buff *temp_skb;
@@ -639,13 +688,24 @@ static int prepend_header_v2(struct rr_packet *pkt, int hdr_size)
 	hdr->src_port_id = (uint16_t)pkt->hdr.src_port_id;
 	hdr->dst_node_id = (uint16_t)pkt->hdr.dst_node_id;
 	hdr->dst_port_id = (uint16_t)pkt->hdr.dst_port_id;
-	
+	/* TODO: Add optional headers, if present */
 	if (temp_skb != skb_peek(pkt->pkt_fragment_q))
 		skb_queue_head(pkt->pkt_fragment_q, temp_skb);
 	pkt->length += hdr_size;
 	return 0;
 }
 
+/**
+ * prepend_header() - Prepend IPC Router header
+ * @pkt: Packet structure which contains the header info to be prepended.
+ * @xprt_info: XPRT through which the packet is transmitted.
+ *
+ * @return: 0 on success, standard Linux error codes on failure.
+ *
+ * This function prepends the header to the packet to be transmitted. The
+ * IPC Router header version to be prepended depends on the XPRT through
+ * which the destination is reachable.
+ */
 static int prepend_header(struct rr_packet *pkt,
 			  struct msm_ipc_router_xprt_info *xprt_info)
 {
@@ -675,6 +735,16 @@ static int prepend_header(struct rr_packet *pkt,
 		return -EINVAL;
 }
 
+/**
+ * defragment_pkt() - Defragment and linearize the packet
+ * @pkt: Packet to be linearized.
+ *
+ * @return: 0 on success, standard Linux error codes on failure.
+ *
+ * Some packets contain fragments of data over multiple SKBs. If an XPRT
+ * does not supported fragmented writes, linearize multiple SKBs into one
+ * single SKB.
+ */
 static int defragment_pkt(struct rr_packet *pkt)
 {
 	struct sk_buff *dst_skb, *src_skb, *temp_skb;
@@ -1627,7 +1697,7 @@ static int process_hello_msg(struct msm_ipc_router_xprt_info *xprt_info,
 
 	
 	memset(&ctl, 0, sizeof(ctl));
-	ctl.cmd = IPC_ROUTER_CTRL_CMD_HELLO;
+	ctl.hello.cmd = IPC_ROUTER_CTRL_CMD_HELLO;
 	rc = msm_ipc_router_send_control_msg(xprt_info, &ctl,
 						IPC_ROUTER_DUMMY_DEST_NODE);
 	if (rc < 0) {
@@ -1751,6 +1821,11 @@ static int process_new_server_msg(struct msm_ipc_router_xprt_info *xprt_info,
 	}
 	up_write(&server_list_lock_lha2);
 
+	/*
+	 * Relay the new server message to other subsystems that do not belong
+	 * to the cluster from which this message is received. Notify the
+	 * local clients waiting for this service.
+	 */
 	relay_ctl_msg(xprt_info, msg);
 	post_control_ports(pkt);
 	return 0;
@@ -1769,6 +1844,11 @@ static int process_rmv_server_msg(struct msm_ipc_router_xprt_info *xprt_info,
 	if (server) {
 		msm_ipc_router_destroy_server(server, msg->srv.node_id,
 					      msg->srv.port_id);
+		/*
+		 * Relay the new server message to other subsystems that do not
+		 * belong to the cluster from which this message is received.
+		 * Notify the local clients communicating with the service.
+		 */
 		relay_ctl_msg(xprt_info, msg);
 		post_control_ports(pkt);
 	}
@@ -1848,6 +1928,7 @@ static void do_read_data(struct work_struct *work)
 	struct rr_packet *pkt = NULL;
 	struct msm_ipc_port *port_ptr;
 	struct msm_ipc_router_remote_port *rport_ptr;
+	int ret;
 
 	struct msm_ipc_router_xprt_info *xprt_info =
 		container_of(work,
@@ -2323,7 +2404,7 @@ int msm_ipc_router_send_msg(struct msm_ipc_port *src,
 static int msm_ipc_router_send_resume_tx(void *data)
 {
 	union rr_control_msg msg;
-	struct rr_header *hdr = (struct rr_header *)data;
+	struct rr_header_v1 *hdr = (struct rr_header_v1 *)data;
 	struct msm_ipc_routing_table_entry *rt_entry;
 	int ret;
 
@@ -2357,8 +2438,6 @@ int msm_ipc_router_read(struct msm_ipc_port *port_ptr,
 			size_t buf_len)
 {
 	struct rr_packet *pkt;
-	struct sk_buff *head_skb;
-	int ret;
 
 	if (!port_ptr || !read_pkt)
 		return -EINVAL;
@@ -2377,17 +2456,10 @@ int msm_ipc_router_read(struct msm_ipc_port *port_ptr,
 	list_del(&pkt->list);
 	if (list_empty(&port_ptr->port_rx_q))
 		wake_unlock(&port_ptr->port_rx_wake_lock);
-	*data = pkt->pkt_fragment_q;
-	ret = pkt->length;
+	*read_pkt = pkt;
 	mutex_unlock(&port_ptr->port_rx_q_lock_lhb3);
-	kfree(pkt);
-	head_skb = skb_peek(*data);
-	if (!head_skb) {
-		pr_err("%s: Socket Buffer not found", __func__);
-		return -EFAULT;
-	}
-	if (((struct rr_header *)(head_skb->data))->confirm_rx)
-		msm_ipc_router_send_resume_tx((void *)(head_skb->data));
+	if (pkt->hdr.control_flag & CONTROL_FLAG_CONFIRM_RX)
+		msm_ipc_router_send_resume_tx(&pkt->hdr);
 
 	return pkt->length;
 }
@@ -2422,6 +2494,29 @@ int msm_ipc_router_rx_data_wait(struct msm_ipc_port *port_ptr, long timeout)
 	return ret;
 }
 
+/**
+ * msm_ipc_router_recv_from() - Recieve messages destined to a local port.
+ * @port_ptr: Pointer to the local port
+ * @pkt : Pointer to the router-to-router packet
+ * @src: Pointer to local port address
+ * @timeout: < 0 timeout indicates infinite wait till a message arrives.
+ *	     > 0 timeout indicates the wait time.
+ *	     0 indicates that we do not wait.
+ * @return: = Number of bytes read(On successful read operation).
+ *	    = -ENOMSG (If there are no pending messages and timeout is 0).
+ *	    = -EINVAL (If either of the arguments, port_ptr or data is invalid)
+ *	    = -EFAULT (If there are no pending messages when timeout is > 0
+ *	      and the wait_event_interruptible_timeout has returned value > 0)
+ *	    = -ERESTARTSYS (If there are no pending messages when timeout
+ *	      is < 0 and wait_event_interruptible was interrupted by a signal)
+ *
+ * This function reads the messages that are destined for a local port. It
+ * is used by modules that exist with-in the kernel and use IPC Router for
+ * transport. The function checks if there are any messages that are already
+ * received. If yes, it reads them, else it waits as per the timeout value.
+ * On a successful read, the return value of the function indicates the number
+ * of bytes that are read.
+ */
 int msm_ipc_router_recv_from(struct msm_ipc_port *port_ptr,
 			     struct rr_packet **pkt,
 			     struct msm_ipc_addr *src,
