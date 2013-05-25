@@ -64,6 +64,203 @@ extern mempool_t *cifs_req_poolp;
 #define TLINK_ERROR_EXPIRE	(1 * HZ)
 #define TLINK_IDLE_EXPIRE	(600 * HZ)
 
+enum {
+
+	/* Mount options that take no arguments */
+	Opt_user_xattr, Opt_nouser_xattr,
+	Opt_forceuid, Opt_noforceuid,
+	Opt_noblocksend, Opt_noautotune,
+	Opt_hard, Opt_soft, Opt_perm, Opt_noperm,
+	Opt_mapchars, Opt_nomapchars, Opt_sfu,
+	Opt_nosfu, Opt_nodfs, Opt_posixpaths,
+	Opt_noposixpaths, Opt_nounix,
+	Opt_nocase,
+	Opt_brl, Opt_nobrl,
+	Opt_forcemandatorylock, Opt_setuids,
+	Opt_nosetuids, Opt_dynperm, Opt_nodynperm,
+	Opt_nohard, Opt_nosoft,
+	Opt_nointr, Opt_intr,
+	Opt_nostrictsync, Opt_strictsync,
+	Opt_serverino, Opt_noserverino,
+	Opt_rwpidforward, Opt_cifsacl, Opt_nocifsacl,
+	Opt_acl, Opt_noacl, Opt_locallease,
+	Opt_sign, Opt_seal, Opt_direct,
+	Opt_strictcache, Opt_noac,
+	Opt_fsc, Opt_mfsymlinks,
+	Opt_multiuser, Opt_sloppy,
+
+	/* Mount options which take numeric value */
+	Opt_backupuid, Opt_backupgid, Opt_uid,
+	Opt_cruid, Opt_gid, Opt_file_mode,
+	Opt_dirmode, Opt_port,
+	Opt_rsize, Opt_wsize, Opt_actimeo,
+
+	/* Mount options which take string value */
+	Opt_user, Opt_pass, Opt_ip,
+	Opt_unc, Opt_domain,
+	Opt_srcaddr, Opt_prefixpath,
+	Opt_iocharset, Opt_sockopt,
+	Opt_netbiosname, Opt_servern,
+	Opt_ver, Opt_sec,
+
+	/* Mount options to be ignored */
+	Opt_ignore,
+
+	/* Options which could be blank */
+	Opt_blank_pass,
+	Opt_blank_user,
+	Opt_blank_ip,
+
+	Opt_err
+};
+
+static const match_table_t cifs_mount_option_tokens = {
+
+	{ Opt_user_xattr, "user_xattr" },
+	{ Opt_nouser_xattr, "nouser_xattr" },
+	{ Opt_forceuid, "forceuid" },
+	{ Opt_noforceuid, "noforceuid" },
+	{ Opt_noblocksend, "noblocksend" },
+	{ Opt_noautotune, "noautotune" },
+	{ Opt_hard, "hard" },
+	{ Opt_soft, "soft" },
+	{ Opt_perm, "perm" },
+	{ Opt_noperm, "noperm" },
+	{ Opt_mapchars, "mapchars" },
+	{ Opt_nomapchars, "nomapchars" },
+	{ Opt_sfu, "sfu" },
+	{ Opt_nosfu, "nosfu" },
+	{ Opt_nodfs, "nodfs" },
+	{ Opt_posixpaths, "posixpaths" },
+	{ Opt_noposixpaths, "noposixpaths" },
+	{ Opt_nounix, "nounix" },
+	{ Opt_nounix, "nolinux" },
+	{ Opt_nocase, "nocase" },
+	{ Opt_nocase, "ignorecase" },
+	{ Opt_brl, "brl" },
+	{ Opt_nobrl, "nobrl" },
+	{ Opt_nobrl, "nolock" },
+	{ Opt_forcemandatorylock, "forcemandatorylock" },
+	{ Opt_forcemandatorylock, "forcemand" },
+	{ Opt_setuids, "setuids" },
+	{ Opt_nosetuids, "nosetuids" },
+	{ Opt_dynperm, "dynperm" },
+	{ Opt_nodynperm, "nodynperm" },
+	{ Opt_nohard, "nohard" },
+	{ Opt_nosoft, "nosoft" },
+	{ Opt_nointr, "nointr" },
+	{ Opt_intr, "intr" },
+	{ Opt_nostrictsync, "nostrictsync" },
+	{ Opt_strictsync, "strictsync" },
+	{ Opt_serverino, "serverino" },
+	{ Opt_noserverino, "noserverino" },
+	{ Opt_rwpidforward, "rwpidforward" },
+	{ Opt_cifsacl, "cifsacl" },
+	{ Opt_nocifsacl, "nocifsacl" },
+	{ Opt_acl, "acl" },
+	{ Opt_noacl, "noacl" },
+	{ Opt_locallease, "locallease" },
+	{ Opt_sign, "sign" },
+	{ Opt_seal, "seal" },
+	{ Opt_direct, "direct" },
+	{ Opt_direct, "directio" },
+	{ Opt_direct, "forcedirectio" },
+	{ Opt_strictcache, "strictcache" },
+	{ Opt_noac, "noac" },
+	{ Opt_fsc, "fsc" },
+	{ Opt_mfsymlinks, "mfsymlinks" },
+	{ Opt_multiuser, "multiuser" },
+	{ Opt_sloppy, "sloppy" },
+
+	{ Opt_backupuid, "backupuid=%s" },
+	{ Opt_backupgid, "backupgid=%s" },
+	{ Opt_uid, "uid=%s" },
+	{ Opt_cruid, "cruid=%s" },
+	{ Opt_gid, "gid=%s" },
+	{ Opt_file_mode, "file_mode=%s" },
+	{ Opt_dirmode, "dirmode=%s" },
+	{ Opt_dirmode, "dir_mode=%s" },
+	{ Opt_port, "port=%s" },
+	{ Opt_rsize, "rsize=%s" },
+	{ Opt_wsize, "wsize=%s" },
+	{ Opt_actimeo, "actimeo=%s" },
+
+	{ Opt_blank_user, "user=" },
+	{ Opt_blank_user, "username=" },
+	{ Opt_user, "user=%s" },
+	{ Opt_user, "username=%s" },
+	{ Opt_blank_pass, "pass=" },
+	{ Opt_pass, "pass=%s" },
+	{ Opt_pass, "password=%s" },
+	{ Opt_blank_ip, "ip=" },
+	{ Opt_blank_ip, "addr=" },
+	{ Opt_ip, "ip=%s" },
+	{ Opt_ip, "addr=%s" },
+	{ Opt_unc, "unc=%s" },
+	{ Opt_unc, "target=%s" },
+	{ Opt_unc, "path=%s" },
+	{ Opt_domain, "dom=%s" },
+	{ Opt_domain, "domain=%s" },
+	{ Opt_domain, "workgroup=%s" },
+	{ Opt_srcaddr, "srcaddr=%s" },
+	{ Opt_prefixpath, "prefixpath=%s" },
+	{ Opt_iocharset, "iocharset=%s" },
+	{ Opt_sockopt, "sockopt=%s" },
+	{ Opt_netbiosname, "netbiosname=%s" },
+	{ Opt_servern, "servern=%s" },
+	{ Opt_ver, "ver=%s" },
+	{ Opt_ver, "vers=%s" },
+	{ Opt_ver, "version=%s" },
+	{ Opt_sec, "sec=%s" },
+
+	{ Opt_ignore, "cred" },
+	{ Opt_ignore, "credentials" },
+	{ Opt_ignore, "cred=%s" },
+	{ Opt_ignore, "credentials=%s" },
+	{ Opt_ignore, "guest" },
+	{ Opt_ignore, "rw" },
+	{ Opt_ignore, "ro" },
+	{ Opt_ignore, "suid" },
+	{ Opt_ignore, "nosuid" },
+	{ Opt_ignore, "exec" },
+	{ Opt_ignore, "noexec" },
+	{ Opt_ignore, "nodev" },
+	{ Opt_ignore, "noauto" },
+	{ Opt_ignore, "dev" },
+	{ Opt_ignore, "mand" },
+	{ Opt_ignore, "nomand" },
+	{ Opt_ignore, "_netdev" },
+
+	{ Opt_err, NULL }
+};
+
+enum {
+	Opt_sec_krb5, Opt_sec_krb5i, Opt_sec_krb5p,
+	Opt_sec_ntlmsspi, Opt_sec_ntlmssp,
+	Opt_ntlm, Opt_sec_ntlmi, Opt_sec_ntlmv2,
+	Opt_sec_ntlmv2i, Opt_sec_lanman,
+	Opt_sec_none,
+
+	Opt_sec_err
+};
+
+static const match_table_t cifs_secflavor_tokens = {
+	{ Opt_sec_krb5, "krb5" },
+	{ Opt_sec_krb5i, "krb5i" },
+	{ Opt_sec_krb5p, "krb5p" },
+	{ Opt_sec_ntlmsspi, "ntlmsspi" },
+	{ Opt_sec_ntlmssp, "ntlmssp" },
+	{ Opt_ntlm, "ntlm" },
+	{ Opt_sec_ntlmi, "ntlmi" },
+	{ Opt_sec_ntlmv2, "nontlm" },
+	{ Opt_sec_ntlmv2, "ntlmv2" },
+	{ Opt_sec_ntlmv2i, "ntlmv2i" },
+	{ Opt_sec_lanman, "lanman" },
+	{ Opt_sec_none, "none" },
+
+	{ Opt_sec_err, NULL }
+};
+
 static int ip_connect(struct TCP_Server_Info *server);
 static int generic_ip_connect(struct TCP_Server_Info *server);
 static void tlink_rb_insert(struct rb_root *root, struct tcon_link *new_tlink);
@@ -786,6 +983,73 @@ extract_hostname(const char *unc)
 	dst[len] = '\0';
 
 	return dst;
+}
+
+static int get_option_ul(substring_t args[], unsigned long *option)
+{
+	int rc;
+	char *string;
+
+	string = match_strdup(args);
+	if (string == NULL)
+		return -ENOMEM;
+	rc = kstrtoul(string, 0, option);
+	kfree(string);
+
+	return rc;
+}
+
+
+static int cifs_parse_security_flavors(char *value,
+				       struct smb_vol *vol)
+{
+
+	substring_t args[MAX_OPT_ARGS];
+
+	switch (match_token(value, cifs_secflavor_tokens, args)) {
+	case Opt_sec_krb5:
+		vol->secFlg |= CIFSSEC_MAY_KRB5;
+		break;
+	case Opt_sec_krb5i:
+		vol->secFlg |= CIFSSEC_MAY_KRB5 | CIFSSEC_MUST_SIGN;
+		break;
+	case Opt_sec_krb5p:
+		/* vol->secFlg |= CIFSSEC_MUST_SEAL | CIFSSEC_MAY_KRB5; */
+		cERROR(1, "Krb5 cifs privacy not supported");
+		break;
+	case Opt_sec_ntlmssp:
+		vol->secFlg |= CIFSSEC_MAY_NTLMSSP;
+		break;
+	case Opt_sec_ntlmsspi:
+		vol->secFlg |= CIFSSEC_MAY_NTLMSSP | CIFSSEC_MUST_SIGN;
+		break;
+	case Opt_ntlm:
+		/* ntlm is default so can be turned off too */
+		vol->secFlg |= CIFSSEC_MAY_NTLM;
+		break;
+	case Opt_sec_ntlmi:
+		vol->secFlg |= CIFSSEC_MAY_NTLM | CIFSSEC_MUST_SIGN;
+		break;
+	case Opt_sec_ntlmv2:
+		vol->secFlg |= CIFSSEC_MAY_NTLMV2;
+		break;
+	case Opt_sec_ntlmv2i:
+		vol->secFlg |= CIFSSEC_MAY_NTLMV2 | CIFSSEC_MUST_SIGN;
+		break;
+#ifdef CONFIG_CIFS_WEAK_PW_HASH
+	case Opt_sec_lanman:
+		vol->secFlg |= CIFSSEC_MAY_LANMAN;
+		break;
+#endif
+	case Opt_sec_none:
+		vol->nullauth = 1;
+		break;
+	default:
+		cERROR(1, "bad security option: %s", value);
+		return 1;
+	}
+
+	return 0;
 }
 
 static int

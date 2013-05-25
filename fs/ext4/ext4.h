@@ -876,23 +876,22 @@ struct ext4_super_block {
 #define EXT4_MF_FS_ABORTED	0x0002	
 
 struct ext4_sb_info {
-	unsigned long s_desc_size;	
-	unsigned long s_inodes_per_block;
-	unsigned long s_blocks_per_group;
-	unsigned long s_clusters_per_group; 
-	unsigned long s_inodes_per_group;
-	unsigned long s_itb_per_group;	
-	unsigned long s_gdb_count;	
-	unsigned long s_desc_per_block;	
-	ext4_group_t s_groups_count;	
-	ext4_group_t s_blockfile_groups;
-	unsigned long s_overhead_last;  
-	unsigned long s_blocks_last;    
-	unsigned int s_cluster_ratio;	
-	unsigned int s_cluster_bits;	
-	loff_t s_bitmap_maxbytes;	
-	struct buffer_head * s_sbh;	
-	struct ext4_super_block *s_es;	
+	unsigned long s_desc_size;	/* Size of a group descriptor in bytes */
+	unsigned long s_inodes_per_block;/* Number of inodes per block */
+	unsigned long s_blocks_per_group;/* Number of blocks in a group */
+	unsigned long s_clusters_per_group; /* Number of clusters in a group */
+	unsigned long s_inodes_per_group;/* Number of inodes in a group */
+	unsigned long s_itb_per_group;	/* Number of inode table blocks per group */
+	unsigned long s_gdb_count;	/* Number of group descriptor blocks */
+	unsigned long s_desc_per_block;	/* Number of group descriptors per block */
+	ext4_group_t s_groups_count;	/* Number of groups in the fs */
+	ext4_group_t s_blockfile_groups;/* Groups acceptable for non-extent files */
+	unsigned long s_overhead;  /* # of fs overhead clusters */
+	unsigned int s_cluster_ratio;	/* Number of blocks per cluster */
+	unsigned int s_cluster_bits;	/* log2 of s_cluster_ratio */
+	loff_t s_bitmap_maxbytes;	/* max bytes for bitmap files */
+	struct buffer_head * s_sbh;	/* Buffer containing the super block */
+	struct ext4_super_block *s_es;	/* Pointer to the super block in the buffer */
 	struct buffer_head **s_group_desc;
 	unsigned int s_mount_opt;
 	unsigned int s_mount_opt2;
@@ -1432,7 +1431,8 @@ struct mmpd_data {
 # define ATTRIB_NORET	__attribute__((noreturn))
 # define NORET_AND	noreturn,
 
-extern unsigned int ext4_count_free(struct buffer_head *, unsigned);
+/* bitmap.c */
+extern unsigned int ext4_count_free(char *bitmap, unsigned numchars);
 
 extern unsigned int ext4_block_group(struct super_block *sb,
 			ext4_fsblk_t blocknr);
@@ -1586,6 +1586,8 @@ extern int ext4_group_extend(struct super_block *sb,
 				ext4_fsblk_t n_blocks_count);
 extern int ext4_resize_fs(struct super_block *sb, ext4_fsblk_t n_blocks_count);
 
+/* super.c */
+extern int ext4_calculate_overhead(struct super_block *sb);
 extern void *ext4_kvmalloc(size_t size, gfp_t flags);
 extern void *ext4_kvzalloc(size_t size, gfp_t flags);
 extern void ext4_kvfree(void *ptr);
