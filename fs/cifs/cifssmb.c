@@ -83,6 +83,35 @@ static struct {
 #endif /* CONFIG_CIFS_WEAK_PW_HASH */
 #endif /* CIFS_POSIX */
 
+/* Forward declarations */
+static void cifs_readv_complete(struct work_struct *work);
+
+#ifdef CONFIG_HIGHMEM
+/*
+ * On arches that have high memory, kmap address space is limited. By
+ * serializing the kmap operations on those arches, we ensure that we don't
+ * end up with a bunch of threads in writeback with partially mapped page
+ * arrays, stuck waiting for kmap to come back. That situation prevents
+ * progress and can deadlock.
+ */
+static DEFINE_MUTEX(cifs_kmap_mutex);
+
+static inline void
+cifs_kmap_lock(void)
+{
+	mutex_lock(&cifs_kmap_mutex);
+}
+
+static inline void
+cifs_kmap_unlock(void)
+{
+	mutex_unlock(&cifs_kmap_mutex);
+}
+#else /* !CONFIG_HIGHMEM */
+#define cifs_kmap_lock() do { ; } while(0)
+#define cifs_kmap_unlock() do { ; } while(0)
+#endif /* CONFIG_HIGHMEM */
+
 /* Mark as invalid, all open files on tree connections since they
    were closed when session to server was lost */
 static void mark_open_files_invalid(struct cifs_tcon *pTcon)
@@ -1384,6 +1413,378 @@ openRetry:
 	return rc;
 }
 
+struct cifs_readdata *
+cifs_readdata_alloc(unsigned int nr_pages)
+{
+	struct cifs_readdata *rdata;
+
+	/* readdata + 1 kvec for each page */
+	rdata = kzalloc(sizeof(*rdata) +
+			sizeof(struct kvec) * nr_pages, GFP_KERNEL);
+	if (rdata != NULL) {
+		INIT_WORK(&rdata->work, cifs_readv_complete);
+		INIT_LIST_HEAD(&rdata->pages);
+	}
+	return rdata;
+}
+
+void
+cifs_readdata_free(struct cifs_readdata *rdata)
+{
+	cifsFileInfo_put(rdata->cfile);
+	kfree(rdata);
+}
+
+/*
+ * Discard any remaining data in the current SMB. To do this, we borrow the
+ * current bigbuf.
+ */
+static int
+cifs_readv_discard(struct TCP_Server_Info *server, struct mid_q_entry *mid)
+{
+	unsigned int rfclen = get_rfc1002_length(server->smallbuf);
+	int remaining = rfclen + 4 - server->total_read;
+	struct cifs_readdata *rdata = mid->callback_data;
+
+	while (remaining > 0) {
+		int length;
+
+		length = cifs_read_from_socket(server, server->bigbuf,
+				min_t(unsigned int, remaining,
+					CIFSMaxBufSize + max_header_size()));
+		if (length < 0)
+			return length;
+		server->total_read += length;
+		remaining -= length;
+	}
+
+	dequeue_mid(mid, rdata->result);
+	return 0;
+}
+
+static inline size_t
+read_rsp_size(void)
+{
+	return sizeof(READ_RSP);
+}
+
+static inline unsigned int
+read_data_offset(char *buf)
+{
+	READ_RSP *rsp = (READ_RSP *)buf;
+	return le16_to_cpu(rsp->DataOffset);
+}
+
+static inline unsigned int
+read_data_length(char *buf)
+{
+	READ_RSP *rsp = (READ_RSP *)buf;
+	return (le16_to_cpu(rsp->DataLengthHigh) << 16) +
+	       le16_to_cpu(rsp->DataLength);
+}
+
+static int
+cifs_readv_receive(struct TCP_Server_Info *server, struct mid_q_entry *mid)
+{
+	int length, len;
+	unsigned int data_offset, remaining, data_len;
+	struct cifs_readdata *rdata = mid->callback_data;
+	char *buf = server->smallbuf;
+	unsigned int buflen = get_rfc1002_length(buf) + 4;
+	u64 eof;
+	pgoff_t eof_index;
+	struct page *page, *tpage;
+
+	cFYI(1, "%s: mid=%llu offset=%llu bytes=%u", __func__,
+		mid->mid, rdata->offset, rdata->bytes);
+
+	/*
+	 * read the rest of READ_RSP header (sans Data array), or whatever we
+	 * can if there's not enough data. At this point, we've read down to
+	 * the Mid.
+	 */
+	len = min_t(unsigned int, buflen, read_rsp_size()) - header_size() + 1;
+
+	rdata->iov[0].iov_base = buf + header_size() - 1;
+	rdata->iov[0].iov_len = len;
+
+	length = cifs_readv_from_socket(server, rdata->iov, 1, len);
+	if (length < 0)
+		return length;
+	server->total_read += length;
+
+	/* Was the SMB read successful? */
+	rdata->result = map_smb_to_linux_error(buf, false);
+	if (rdata->result != 0) {
+		cFYI(1, "%s: server returned error %d", __func__,
+			rdata->result);
+		return cifs_readv_discard(server, mid);
+	}
+
+	/* Is there enough to get to the rest of the READ_RSP header? */
+	if (server->total_read < read_rsp_size()) {
+		cFYI(1, "%s: server returned short header. got=%u expected=%zu",
+			__func__, server->total_read, read_rsp_size());
+		rdata->result = -EIO;
+		return cifs_readv_discard(server, mid);
+	}
+
+	data_offset = read_data_offset(buf) + 4;
+	if (data_offset < server->total_read) {
+		/*
+		 * win2k8 sometimes sends an offset of 0 when the read
+		 * is beyond the EOF. Treat it as if the data starts just after
+		 * the header.
+		 */
+		cFYI(1, "%s: data offset (%u) inside read response header",
+			__func__, data_offset);
+		data_offset = server->total_read;
+	} else if (data_offset > MAX_CIFS_SMALL_BUFFER_SIZE) {
+		/* data_offset is beyond the end of smallbuf */
+		cFYI(1, "%s: data offset (%u) beyond end of smallbuf",
+			__func__, data_offset);
+		rdata->result = -EIO;
+		return cifs_readv_discard(server, mid);
+	}
+
+	cFYI(1, "%s: total_read=%u data_offset=%u", __func__,
+		server->total_read, data_offset);
+
+	len = data_offset - server->total_read;
+	if (len > 0) {
+		/* read any junk before data into the rest of smallbuf */
+		rdata->iov[0].iov_base = buf + server->total_read;
+		rdata->iov[0].iov_len = len;
+		length = cifs_readv_from_socket(server, rdata->iov, 1, len);
+		if (length < 0)
+			return length;
+		server->total_read += length;
+	}
+
+	/* set up first iov for signature check */
+	rdata->iov[0].iov_base = buf;
+	rdata->iov[0].iov_len = server->total_read;
+	cFYI(1, "0: iov_base=%p iov_len=%zu",
+		rdata->iov[0].iov_base, rdata->iov[0].iov_len);
+
+	/* how much data is in the response? */
+	data_len = read_data_length(buf);
+	if (data_offset + data_len > buflen) {
+		/* data_len is corrupt -- discard frame */
+		rdata->result = -EIO;
+		return cifs_readv_discard(server, mid);
+	}
+
+	/* marshal up the page array */
+	len = 0;
+	remaining = data_len;
+	rdata->nr_iov = 1;
+
+	/* determine the eof that the server (probably) has */
+	eof = CIFS_I(rdata->mapping->host)->server_eof;
+	eof_index = eof ? (eof - 1) >> PAGE_CACHE_SHIFT : 0;
+	cFYI(1, "eof=%llu eof_index=%lu", eof, eof_index);
+
+	cifs_kmap_lock();
+	list_for_each_entry_safe(page, tpage, &rdata->pages, lru) {
+		if (remaining >= PAGE_CACHE_SIZE) {
+			/* enough data to fill the page */
+			rdata->iov[rdata->nr_iov].iov_base = kmap(page);
+			rdata->iov[rdata->nr_iov].iov_len = PAGE_CACHE_SIZE;
+			cFYI(1, "%u: idx=%lu iov_base=%p iov_len=%zu",
+				rdata->nr_iov, page->index,
+				rdata->iov[rdata->nr_iov].iov_base,
+				rdata->iov[rdata->nr_iov].iov_len);
+			++rdata->nr_iov;
+			len += PAGE_CACHE_SIZE;
+			remaining -= PAGE_CACHE_SIZE;
+		} else if (remaining > 0) {
+			/* enough for partial page, fill and zero the rest */
+			rdata->iov[rdata->nr_iov].iov_base = kmap(page);
+			rdata->iov[rdata->nr_iov].iov_len = remaining;
+			cFYI(1, "%u: idx=%lu iov_base=%p iov_len=%zu",
+				rdata->nr_iov, page->index,
+				rdata->iov[rdata->nr_iov].iov_base,
+				rdata->iov[rdata->nr_iov].iov_len);
+			memset(rdata->iov[rdata->nr_iov].iov_base + remaining,
+				'\0', PAGE_CACHE_SIZE - remaining);
+			++rdata->nr_iov;
+			len += remaining;
+			remaining = 0;
+		} else if (page->index > eof_index) {
+			/*
+			 * The VFS will not try to do readahead past the
+			 * i_size, but it's possible that we have outstanding
+			 * writes with gaps in the middle and the i_size hasn't
+			 * caught up yet. Populate those with zeroed out pages
+			 * to prevent the VFS from repeatedly attempting to
+			 * fill them until the writes are flushed.
+			 */
+			zero_user(page, 0, PAGE_CACHE_SIZE);
+			list_del(&page->lru);
+			lru_cache_add_file(page);
+			flush_dcache_page(page);
+			SetPageUptodate(page);
+			unlock_page(page);
+			page_cache_release(page);
+		} else {
+			/* no need to hold page hostage */
+			list_del(&page->lru);
+			lru_cache_add_file(page);
+			unlock_page(page);
+			page_cache_release(page);
+		}
+	}
+	cifs_kmap_unlock();
+
+	/* issue the read if we have any iovecs left to fill */
+	if (rdata->nr_iov > 1) {
+		length = cifs_readv_from_socket(server, &rdata->iov[1],
+						rdata->nr_iov - 1, len);
+		if (length < 0)
+			return length;
+		server->total_read += length;
+	} else {
+		length = 0;
+	}
+
+	rdata->bytes = length;
+
+	cFYI(1, "total_read=%u buflen=%u remaining=%u", server->total_read,
+		buflen, remaining);
+
+	/* discard anything left over */
+	if (server->total_read < buflen)
+		return cifs_readv_discard(server, mid);
+
+	dequeue_mid(mid, false);
+	return length;
+}
+
+static void
+cifs_readv_complete(struct work_struct *work)
+{
+	struct cifs_readdata *rdata = container_of(work,
+						struct cifs_readdata, work);
+	struct page *page, *tpage;
+
+	list_for_each_entry_safe(page, tpage, &rdata->pages, lru) {
+		list_del(&page->lru);
+		lru_cache_add_file(page);
+
+		if (rdata->result == 0) {
+			kunmap(page);
+			flush_dcache_page(page);
+			SetPageUptodate(page);
+		}
+
+		unlock_page(page);
+
+		if (rdata->result == 0)
+			cifs_readpage_to_fscache(rdata->mapping->host, page);
+
+		page_cache_release(page);
+	}
+	cifs_readdata_free(rdata);
+}
+
+static void
+cifs_readv_callback(struct mid_q_entry *mid)
+{
+	struct cifs_readdata *rdata = mid->callback_data;
+	struct cifs_tcon *tcon = tlink_tcon(rdata->cfile->tlink);
+	struct TCP_Server_Info *server = tcon->ses->server;
+
+	cFYI(1, "%s: mid=%llu state=%d result=%d bytes=%u", __func__,
+		mid->mid, mid->mid_state, rdata->result, rdata->bytes);
+
+	switch (mid->mid_state) {
+	case MID_RESPONSE_RECEIVED:
+		/* result already set, check signature */
+		if (server->sec_mode &
+		    (SECMODE_SIGN_REQUIRED | SECMODE_SIGN_ENABLED)) {
+			if (cifs_verify_signature(rdata->iov, rdata->nr_iov,
+					  server, mid->sequence_number + 1))
+				cERROR(1, "Unexpected SMB signature");
+		}
+		/* FIXME: should this be counted toward the initiating task? */
+		task_io_account_read(rdata->bytes);
+		cifs_stats_bytes_read(tcon, rdata->bytes);
+		break;
+	case MID_REQUEST_SUBMITTED:
+	case MID_RETRY_NEEDED:
+		rdata->result = -EAGAIN;
+		break;
+	default:
+		rdata->result = -EIO;
+	}
+
+	queue_work(cifsiod_wq, &rdata->work);
+	DeleteMidQEntry(mid);
+	cifs_add_credits(server, 1);
+}
+
+/* cifs_async_readv - send an async write, and set up mid to handle result */
+int
+cifs_async_readv(struct cifs_readdata *rdata)
+{
+	int rc;
+	READ_REQ *smb = NULL;
+	int wct;
+	struct cifs_tcon *tcon = tlink_tcon(rdata->cfile->tlink);
+
+	cFYI(1, "%s: offset=%llu bytes=%u", __func__,
+		rdata->offset, rdata->bytes);
+
+	if (tcon->ses->capabilities & CAP_LARGE_FILES)
+		wct = 12;
+	else {
+		wct = 10; /* old style read */
+		if ((rdata->offset >> 32) > 0)  {
+			/* can not handle this big offset for old */
+			return -EIO;
+		}
+	}
+
+	rc = small_smb_init(SMB_COM_READ_ANDX, wct, tcon, (void **)&smb);
+	if (rc)
+		return rc;
+
+	smb->hdr.Pid = cpu_to_le16((__u16)rdata->pid);
+	smb->hdr.PidHigh = cpu_to_le16((__u16)(rdata->pid >> 16));
+
+	smb->AndXCommand = 0xFF;	/* none */
+	smb->Fid = rdata->cfile->netfid;
+	smb->OffsetLow = cpu_to_le32(rdata->offset & 0xFFFFFFFF);
+	if (wct == 12)
+		smb->OffsetHigh = cpu_to_le32(rdata->offset >> 32);
+	smb->Remaining = 0;
+	smb->MaxCount = cpu_to_le16(rdata->bytes & 0xFFFF);
+	smb->MaxCountHigh = cpu_to_le32(rdata->bytes >> 16);
+	if (wct == 12)
+		smb->ByteCount = 0;
+	else {
+		/* old style read */
+		struct smb_com_readx_req *smbr =
+			(struct smb_com_readx_req *)smb;
+		smbr->ByteCount = 0;
+	}
+
+	/* 4 for RFC1001 length + 1 for BCC */
+	rdata->iov[0].iov_base = smb;
+	rdata->iov[0].iov_len = be32_to_cpu(smb->hdr.smb_buf_length) + 4;
+
+	rc = cifs_call_async(tcon->ses->server, rdata->iov, 1,
+			     cifs_readv_receive, cifs_readv_callback,
+			     rdata, false);
+
+	if (rc == 0)
+		cifs_stats_inc(&tcon->num_reads);
+
+	cifs_small_buf_release(smb);
+	return rc;
+}
+
 int
 CIFSSMBRead(const int xid, struct cifs_io_parms *io_parms, unsigned int *nbytes,
 	    char **buf, int *pbuf_type)
@@ -1815,15 +2216,15 @@ cifs_async_writev(struct cifs_writedata *wdata)
 	iov[0].iov_len = be32_to_cpu(smb->hdr.smb_buf_length) + 4 + 1;
 	iov[0].iov_base = smb;
 
-	/* marshal up the pages into iov array */
-	wdata->bytes = 0;
-	for (i = 0; i < wdata->nr_pages; i++) {
-		iov[i + 1].iov_len = min(inode->i_size -
-				      page_offset(wdata->pages[i]),
-					(loff_t)PAGE_CACHE_SIZE);
-		iov[i + 1].iov_base = kmap(wdata->pages[i]);
-		wdata->bytes += iov[i + 1].iov_len;
-	}
+	/*
+	 * This function should marshal up the page array into the kvec
+	 * array, reserving [0] for the header. It should kmap the pages
+	 * and set the iov_len properly for each one. It may also set
+	 * wdata->bytes too.
+	 */
+	cifs_kmap_lock();
+	wdata->marshal_iov(iov, wdata);
+	cifs_kmap_unlock();
 
 	cFYI(1, "async write at %llu %u bytes", wdata->offset, wdata->bytes);
 
