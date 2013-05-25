@@ -69,6 +69,7 @@ enum {
 	/* Mount options that take no arguments */
 	Opt_user_xattr, Opt_nouser_xattr,
 	Opt_forceuid, Opt_noforceuid,
+	Opt_forcegid, Opt_noforcegid,
 	Opt_noblocksend, Opt_noautotune,
 	Opt_hard, Opt_soft, Opt_perm, Opt_noperm,
 	Opt_mapchars, Opt_nomapchars, Opt_sfu,
@@ -120,6 +121,8 @@ static const match_table_t cifs_mount_option_tokens = {
 	{ Opt_nouser_xattr, "nouser_xattr" },
 	{ Opt_forceuid, "forceuid" },
 	{ Opt_noforceuid, "noforceuid" },
+	{ Opt_forcegid, "forcegid" },
+	{ Opt_noforcegid, "noforcegid" },
 	{ Opt_noblocksend, "noblocksend" },
 	{ Opt_noautotune, "noautotune" },
 	{ Opt_hard, "hard" },
@@ -1126,10 +1129,240 @@ cifs_parse_mount_options(const char *mountdata, const char *devname,
 			vol->no_xattr = 0;
 		} else if (strnicmp(data, "nouser_xattr", 12) == 0) {
 			vol->no_xattr = 1;
-		} else if (strnicmp(data, "user", 4) == 0) {
-			if (!value) {
-				printk(KERN_WARNING
-				       "CIFS: invalid or missing username\n");
+			break;
+		case Opt_forceuid:
+			override_uid = 1;
+			break;
+		case Opt_noforceuid:
+			override_uid = 0;
+			break;
+		case Opt_forcegid:
+			override_gid = 1;
+			break;
+		case Opt_noforcegid:
+			override_gid = 0;
+			break;
+		case Opt_noblocksend:
+			vol->noblocksnd = 1;
+			break;
+		case Opt_noautotune:
+			vol->noautotune = 1;
+			break;
+		case Opt_hard:
+			vol->retry = 1;
+			break;
+		case Opt_soft:
+			vol->retry = 0;
+			break;
+		case Opt_perm:
+			vol->noperm = 0;
+			break;
+		case Opt_noperm:
+			vol->noperm = 1;
+			break;
+		case Opt_mapchars:
+			vol->remap = 1;
+			break;
+		case Opt_nomapchars:
+			vol->remap = 0;
+			break;
+		case Opt_sfu:
+			vol->sfu_emul = 1;
+			break;
+		case Opt_nosfu:
+			vol->sfu_emul = 0;
+			break;
+		case Opt_nodfs:
+			vol->nodfs = 1;
+			break;
+		case Opt_posixpaths:
+			vol->posix_paths = 1;
+			break;
+		case Opt_noposixpaths:
+			vol->posix_paths = 0;
+			break;
+		case Opt_nounix:
+			vol->no_linux_ext = 1;
+			break;
+		case Opt_nocase:
+			vol->nocase = 1;
+			break;
+		case Opt_brl:
+			vol->nobrl =  0;
+			break;
+		case Opt_nobrl:
+			vol->nobrl =  1;
+			/*
+			 * turn off mandatory locking in mode
+			 * if remote locking is turned off since the
+			 * local vfs will do advisory
+			 */
+			if (vol->file_mode ==
+				(S_IALLUGO & ~(S_ISUID | S_IXGRP)))
+				vol->file_mode = S_IALLUGO;
+			break;
+		case Opt_forcemandatorylock:
+			vol->mand_lock = 1;
+			break;
+		case Opt_setuids:
+			vol->setuids = 1;
+			break;
+		case Opt_nosetuids:
+			vol->setuids = 0;
+			break;
+		case Opt_dynperm:
+			vol->dynperm = true;
+			break;
+		case Opt_nodynperm:
+			vol->dynperm = false;
+			break;
+		case Opt_nohard:
+			vol->retry = 0;
+			break;
+		case Opt_nosoft:
+			vol->retry = 1;
+			break;
+		case Opt_nointr:
+			vol->intr = 0;
+			break;
+		case Opt_intr:
+			vol->intr = 1;
+			break;
+		case Opt_nostrictsync:
+			vol->nostrictsync = 1;
+			break;
+		case Opt_strictsync:
+			vol->nostrictsync = 0;
+			break;
+		case Opt_serverino:
+			vol->server_ino = 1;
+			break;
+		case Opt_noserverino:
+			vol->server_ino = 0;
+			break;
+		case Opt_rwpidforward:
+			vol->rwpidforward = 1;
+			break;
+		case Opt_cifsacl:
+			vol->cifs_acl = 1;
+			break;
+		case Opt_nocifsacl:
+			vol->cifs_acl = 0;
+			break;
+		case Opt_acl:
+			vol->no_psx_acl = 0;
+			break;
+		case Opt_noacl:
+			vol->no_psx_acl = 1;
+			break;
+		case Opt_locallease:
+			vol->local_lease = 1;
+			break;
+		case Opt_sign:
+			vol->secFlg |= CIFSSEC_MUST_SIGN;
+			break;
+		case Opt_seal:
+			/* we do not do the following in secFlags because seal
+			 * is a per tree connection (mount) not a per socket
+			 * or per-smb connection option in the protocol
+			 * vol->secFlg |= CIFSSEC_MUST_SEAL;
+			 */
+			vol->seal = 1;
+			break;
+		case Opt_direct:
+			vol->direct_io = 1;
+			break;
+		case Opt_strictcache:
+			vol->strict_io = 1;
+			break;
+		case Opt_noac:
+			printk(KERN_WARNING "CIFS: Mount option noac not "
+				"supported. Instead set "
+				"/proc/fs/cifs/LookupCacheEnabled to 0\n");
+			break;
+		case Opt_fsc:
+#ifndef CONFIG_CIFS_FSCACHE
+			cERROR(1, "FS-Cache support needs CONFIG_CIFS_FSCACHE "
+				  "kernel config option set");
+			goto cifs_parse_mount_err;
+#endif
+			vol->fsc = true;
+			break;
+		case Opt_mfsymlinks:
+			vol->mfsymlinks = true;
+			break;
+		case Opt_multiuser:
+			vol->multiuser = true;
+			break;
+		case Opt_sloppy:
+			sloppy = true;
+			break;
+
+		/* Numeric Values */
+		case Opt_backupuid:
+			if (get_option_ul(args, &option)) {
+				cERROR(1, "%s: Invalid backupuid value",
+					__func__);
+				goto cifs_parse_mount_err;
+			}
+			vol->backupuid = option;
+			vol->backupuid_specified = true;
+			break;
+		case Opt_backupgid:
+			if (get_option_ul(args, &option)) {
+				cERROR(1, "%s: Invalid backupgid value",
+					__func__);
+				goto cifs_parse_mount_err;
+			}
+			vol->backupgid = option;
+			vol->backupgid_specified = true;
+			break;
+		case Opt_uid:
+			if (get_option_ul(args, &option)) {
+				cERROR(1, "%s: Invalid uid value",
+					__func__);
+				goto cifs_parse_mount_err;
+			}
+			vol->linux_uid = option;
+			uid_specified = true;
+			break;
+		case Opt_cruid:
+			if (get_option_ul(args, &option)) {
+				cERROR(1, "%s: Invalid cruid value",
+					__func__);
+				goto cifs_parse_mount_err;
+			}
+			vol->cred_uid = option;
+			break;
+		case Opt_gid:
+			if (get_option_ul(args, &option)) {
+				cERROR(1, "%s: Invalid gid value",
+						__func__);
+				goto cifs_parse_mount_err;
+			}
+			vol->linux_gid = option;
+			gid_specified = true;
+			break;
+		case Opt_file_mode:
+			if (get_option_ul(args, &option)) {
+				cERROR(1, "%s: Invalid file_mode value",
+					__func__);
+				goto cifs_parse_mount_err;
+			}
+			vol->file_mode = option;
+			break;
+		case Opt_dirmode:
+			if (get_option_ul(args, &option)) {
+				cERROR(1, "%s: Invalid dir_mode value",
+					__func__);
+				goto cifs_parse_mount_err;
+			}
+			vol->dir_mode = option;
+			break;
+		case Opt_port:
+			if (get_option_ul(args, &option)) {
+				cERROR(1, "%s: Invalid port value",
+					__func__);
 				goto cifs_parse_mount_err;
 			} else if (!*value) {
 				/* null user, ie anonymous, authentication */
