@@ -638,9 +638,6 @@ static int hci_dev_do_close(struct hci_dev *hdev, u8 is_process)
 
 	BT_DBG("%s %p", hdev->name, hdev);
 
-	/* Added in 3.4.12 patch but causes bork
-        cancel_delayed_work(&hdev->power_off);  */
-
 	hci_req_cancel(hdev, ENODEV);
 	hci_req_lock(hdev);
 
