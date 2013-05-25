@@ -821,19 +821,20 @@ static int eth_stop(struct net_device *net)
 		if (link->close)
 			link->close(link);
 
+		/* NOTE:  we have no abort-queue primitive we could use
+		 * to cancel all pending I/O.  Instead, we disable then
+		 * reenable the endpoints ... this idiom may leave toggle
+		 * wrong, but that's a self-correcting error.
+		 *
+		 * REVISIT:  we *COULD* just let the transfers complete at
+		 * their own pace; the network stack can handle old packets.
+		 * For the moment we leave this here, since it works.
+		 */
 		in = link->in_ep->desc;
 		out = link->out_ep->desc;
 		usb_ep_disable(link->in_ep);
 		usb_ep_disable(link->out_ep);
 		if (netif_carrier_ok(net)) {
-			if (config_ep_by_speed(dev->gadget, &link->func,
-					       link->in_ep) ||
-			    config_ep_by_speed(dev->gadget, &link->func,
-					       link->out_ep)) {
-				link->in_ep->desc = NULL;
-				link->out_ep->desc = NULL;
-				return -EINVAL;
-			}
 			DBG(dev, "host still using in/out endpoints\n");
 			link->in_ep->desc = in;
 			link->out_ep->desc = out;
