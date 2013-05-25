@@ -883,20 +883,55 @@ cifs_parse_mount_options(const char *mountdata, const char *devname,
 				printk(KERN_WARNING "CIFS: username too long\n");
 				goto cifs_parse_mount_err;
 			}
-		} else if (strnicmp(data, "pass", 4) == 0) {
-			if (!value) {
-				vol->password = NULL;
-				continue;
-			} else if (value[0] == 0) {
-				/* check if string begins with double comma
-				   since that would mean the password really
-				   does start with a comma, and would not
-				   indicate an empty string */
-				if (value[1] != separator[0]) {
-					vol->password = NULL;
-					continue;
-				}
+			vol->username = kstrdup(string, GFP_KERNEL);
+			if (!vol->username) {
+				printk(KERN_WARNING "CIFS: no memory "
+						    "for username\n");
+				goto cifs_parse_mount_err;
 			}
+			break;
+		case Opt_blank_pass:
+			vol->password = NULL;
+			break;
+		case Opt_pass:
+			/* passwords have to be handled differently
+			 * to allow the character used for deliminator
+			 * to be passed within them
+			 */
+
+			/* Obtain the value string */
+			value = strchr(data, '=');
+			value++;
+
+			/* Set tmp_end to end of the string */
+			tmp_end = (char *) value + strlen(value);
+
+			/* Check if following character is the deliminator
+			 * If yes, we have encountered a double deliminator
+			 * reset the NULL character to the deliminator
+			 */
+			if (tmp_end < end && tmp_end[1] == delim) {
+				tmp_end[0] = delim;
+
+				/* Keep iterating until we get to a single
+				 * deliminator OR the end
+				 */
+				while ((tmp_end = strchr(tmp_end, delim))
+					!= NULL && (tmp_end[1] == delim)) {
+						tmp_end = (char *) &tmp_end[2];
+				}
+
+				/* Reset var options to point to next element */
+				if (tmp_end) {
+					tmp_end[0] = '\0';
+					options = (char *) &tmp_end[1];
+				} else
+					/* Reached the end of the mount option
+					 * string */
+					options = end;
+			}
+
+			/* Now build new password string */
 			temp_len = strlen(value);
 			/* removed password length check, NTLM passwords
 				can be arbitrarily long */
@@ -2813,6 +2848,47 @@ cifs_negotiate_wsize(struct cifs_tcon *tcon, struct smb_vol *pvolume_info)
 	wsize = min_t(unsigned int, wsize, CIFS_MAX_WSIZE);
 
 	return wsize;
+}
+
+static unsigned int
+cifs_negotiate_rsize(struct cifs_tcon *tcon, struct smb_vol *pvolume_info)
+{
+	__u64 unix_cap = le64_to_cpu(tcon->fsUnixInfo.Capability);
+	struct TCP_Server_Info *server = tcon->ses->server;
+	unsigned int rsize, defsize;
+
+	/*
+	 * Set default value...
+	 *
+	 * HACK alert! Ancient servers have very small buffers. Even though
+	 * MS-CIFS indicates that servers are only limited by the client's
+	 * bufsize for reads, testing against win98se shows that it throws
+	 * INVALID_PARAMETER errors if you try to request too large a read.
+	 * OS/2 just sends back short reads.
+	 *
+	 * If the server doesn't advertise CAP_LARGE_READ_X, then assume that
+	 * it can't handle a read request larger than its MaxBufferSize either.
+	 */
+	if (tcon->unix_ext && (unix_cap & CIFS_UNIX_LARGE_READ_CAP))
+		defsize = CIFS_DEFAULT_IOSIZE;
+	else if (server->capabilities & CAP_LARGE_READ_X)
+		defsize = CIFS_DEFAULT_NON_POSIX_RSIZE;
+	else
+		defsize = server->maxBuf - sizeof(READ_RSP);
+
+	rsize = pvolume_info->rsize ? pvolume_info->rsize : defsize;
+
+	/*
+	 * no CAP_LARGE_READ_X? Then MS-CIFS states that we must limit this to
+	 * the client's MaxBufferSize.
+	 */
+	if (!(server->capabilities & CAP_LARGE_READ_X))
+		rsize = min_t(unsigned int, CIFSMaxBufSize, rsize);
+
+	/* hard limit of CIFS_MAX_RSIZE */
+	rsize = min_t(unsigned int, rsize, CIFS_MAX_RSIZE);
+
+	return rsize;
 }
 
 static int
