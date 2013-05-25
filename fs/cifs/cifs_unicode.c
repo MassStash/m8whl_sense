@@ -326,7 +326,7 @@ cifsConvertToUCS(__le16 *target, const char *source, int srclen,
 		put_unaligned(dst_char, &target[j]);
 	}
 
-ctoUCS_out:
-	return i;
+ctoUTF16_out:
+	return j;
 }
 
