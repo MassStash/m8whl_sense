@@ -1627,7 +1627,7 @@ static int process_hello_msg(struct msm_ipc_router_xprt_info *xprt_info,
 
 	
 	memset(&ctl, 0, sizeof(ctl));
-	ctl.hello.cmd = IPC_ROUTER_CTRL_CMD_HELLO;
+	ctl.cmd = IPC_ROUTER_CTRL_CMD_HELLO;
 	rc = msm_ipc_router_send_control_msg(xprt_info, &ctl,
 						IPC_ROUTER_DUMMY_DEST_NODE);
 	if (rc < 0) {
@@ -1848,7 +1848,6 @@ static void do_read_data(struct work_struct *work)
 	struct rr_packet *pkt = NULL;
 	struct msm_ipc_port *port_ptr;
 	struct msm_ipc_router_remote_port *rport_ptr;
-	int ret;
 
 	struct msm_ipc_router_xprt_info *xprt_info =
 		container_of(work,
@@ -1924,27 +1923,12 @@ static void do_read_data(struct work_struct *work)
 					hdr->src_port_id);
 				up_read(&routing_table_lock_lha3);
 				up_read(&local_ports_lock_lha2);
-				release_pkt(pkt);
 				return;
 			}
 		}
 		up_read(&routing_table_lock_lha3);
 		post_pkt_to_port(port_ptr, pkt, 0);
 		up_read(&local_ports_lock_lha2);
-
-process_done:
-		if (resume_tx) {
-			union rr_control_msg msg;
-			memset(&msg, 0, sizeof(msg));
-			msg.cmd = IPC_ROUTER_CTRL_CMD_RESUME_TX;
-			msg.cli.node_id = resume_tx_node_id;
-			msg.cli.port_id = resume_tx_port_id;
-
-			RR("x RESUME_TX id=%d:%08x\n",
-			   msg.cli.node_id, msg.cli.port_id);
-			msm_ipc_router_send_control_msg(xprt_info, &msg);
-		}
-
 	}
 	return;
 
@@ -2323,10 +2307,22 @@ int msm_ipc_router_send_msg(struct msm_ipc_port *src,
 	return 0;
 }
 
+/**
+ * msm_ipc_router_send_resume_tx() - Send Resume_Tx message
+ * @data: Pointer to received data packet that has confirm_rx bit set
+ *
+ * @return: On success, number of bytes transferred is returned, else
+ *	    standard linux error code is returned.
+ *
+ * This function sends the Resume_Tx event to the remote node that
+ * sent the data with confirm_rx field set. In case of a multi-hop
+ * scenario also, this function makes sure that the destination node_id
+ * to which the resume_tx event should reach is right.
+ */
 static int msm_ipc_router_send_resume_tx(void *data)
 {
 	union rr_control_msg msg;
-	struct rr_header_v1 *hdr = (struct rr_header_v1 *)data;
+	struct rr_header *hdr = (struct rr_header *)data;
 	struct msm_ipc_routing_table_entry *rt_entry;
 	int ret;
 
@@ -2360,6 +2356,8 @@ int msm_ipc_router_read(struct msm_ipc_port *port_ptr,
 			size_t buf_len)
 {
 	struct rr_packet *pkt;
+	struct sk_buff *head_skb;
+	int ret;
 
 	if (!port_ptr || !read_pkt)
 		return -EINVAL;
@@ -2378,10 +2376,17 @@ int msm_ipc_router_read(struct msm_ipc_port *port_ptr,
 	list_del(&pkt->list);
 	if (list_empty(&port_ptr->port_rx_q))
 		wake_unlock(&port_ptr->port_rx_wake_lock);
-	*read_pkt = pkt;
+	*data = pkt->pkt_fragment_q;
+	ret = pkt->length;
 	mutex_unlock(&port_ptr->port_rx_q_lock_lhb3);
-	if (pkt->hdr.control_flag & CONTROL_FLAG_CONFIRM_RX)
-		msm_ipc_router_send_resume_tx(&pkt->hdr);
+	kfree(pkt);
+	head_skb = skb_peek(*data);
+	if (!head_skb) {
+		pr_err("%s: Socket Buffer not found", __func__);
+		return -EFAULT;
+	}
+	if (((struct rr_header *)(head_skb->data))->confirm_rx)
+		msm_ipc_router_send_resume_tx((void *)(head_skb->data));
 
 	return pkt->length;
 }
