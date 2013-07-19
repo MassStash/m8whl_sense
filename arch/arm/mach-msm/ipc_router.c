@@ -1931,6 +1931,20 @@ static void do_read_data(struct work_struct *work)
 		up_read(&routing_table_lock_lha3);
 		post_pkt_to_port(port_ptr, pkt, 0);
 		up_read(&local_ports_lock_lha2);
+
+process_done:
+		if (resume_tx) {
+			union rr_control_msg msg;
+			memset(&msg, 0, sizeof(msg));
+			msg.cmd = IPC_ROUTER_CTRL_CMD_RESUME_TX;
+			msg.cli.node_id = resume_tx_node_id;
+			msg.cli.port_id = resume_tx_port_id;
+
+			RR("x RESUME_TX id=%d:%08x\n",
+			   msg.cli.node_id, msg.cli.port_id);
+			msm_ipc_router_send_control_msg(xprt_info, &msg);
+		}
+
 	}
 	return;
 
