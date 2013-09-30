@@ -328,7 +328,7 @@ static int prealloc(struct list_head *list, struct usb_ep *ep, unsigned n)
 		req = usb_ep_alloc_request(ep, GFP_ATOMIC);
 		if (!req)
 			return list_empty(list) ? -ENOMEM : 0;
-		
+		/* update completion handler */
 		if (usb_in)
 			req->complete = tx_complete;
 		else
@@ -665,6 +665,10 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		netif_stop_queue(net);
 	spin_unlock_irqrestore(&dev->req_lock, flags);
 
+	/* no buffer copies needed, unless the network stack did it
+	 * or the hardware can't use skb buffers.
+	 * or there's not enough space for extra headers we need
+	 */
 	spin_lock_irqsave(&dev->lock, flags);
 	if (dev->wrap) {
 		if (dev->port_usb)
@@ -681,15 +685,15 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 				"skb->len:%d skb->data_len:%d\n",
 				req->length, dev->header_len,
 				skb->len, skb->data_len);
-		
+		/* Add RNDIS Header */
 		memcpy(req->buf + req->length, dev->port_usb->header,
 						dev->header_len);
-		
+		/* Increment req length by header size */
 		req->length += dev->header_len;
 		spin_unlock_irqrestore(&dev->lock, flags);
-		
+		/* Copy received IP data from SKB */
 		memcpy(req->buf + req->length, skb->data, skb->len);
-		
+		/* Increment req length by skb data length */
 		req->length += skb->len;
 		length = req->length;
 		dev_kfree_skb_any(skb);
@@ -714,7 +718,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		req->context = skb;
 	}
 
-	
+	/* NCM requires no zlp if transfer is dwNtbInMaxSize */
 	if (dev->port_usb->is_fixed &&
 	    length == dev->port_usb->fixed_in_len &&
 	    (length % in->maxpacket) == 0)
@@ -1074,7 +1078,7 @@ fail1:
 		(void) usb_ep_disable(link->in_ep);
 	}
 
-	
+	/* caller is responsible for cleanup on error */
 	if (result < 0) {
 fail0:
 		kfree(link->header);
@@ -1114,7 +1118,7 @@ void gether_disconnect(struct gether *link)
 		usb_ep_free_request(link->in_ep, req);
 		spin_lock(&dev->req_lock);
 	}
-	
+	/* Free rndis header buffer memory */
 	kfree(link->header);
 	link->header = NULL;
 	spin_unlock(&dev->req_lock);
