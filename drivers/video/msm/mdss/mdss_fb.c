@@ -1545,6 +1545,26 @@ static void mdss_fb_commit_wq_handler(struct work_struct *work)
 		if (ret)
 			pr_err("%s fails: ret = %x", __func__, ret);
 	}
+	mdss_fb_update_backlight(mfd);
+	if (IS_ERR_VALUE(ret) || !sync_pt_data->flushed)
+		mdss_fb_signal_timeline(sync_pt_data);
+
+	return ret;
+}
+
+static int __mdss_fb_display_thread(void *data)
+{
+	struct msm_fb_data_type *mfd = data;
+	int ret;
+	struct sched_param param;
+	param.sched_priority = 16;
+	ret = sched_setscheduler(current, SCHED_FIFO, &param);
+	if (ret)
+		pr_info("%s: set priority failed\n", __func__);
+
+	while (1) {
+		wait_event_interruptible(mfd->commit_wait_q,
+				atomic_read(&mfd->commits_pending));
 
 	
 	if (mfd->panel_info->pdest == DISPLAY_1)
