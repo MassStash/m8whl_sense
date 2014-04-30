@@ -52,6 +52,9 @@ struct cpufreq_interactive_cpuinfo {
 	unsigned int target_freq;
 	unsigned int floor_freq;
 	unsigned int max_freq;
+	unsigned int timer_rate;
+	int timer_slack_val;
+	unsigned int min_sample_time;
 	u64 floor_validate_time;
 	u64 hispeed_validate_time;
 	struct rw_semaphore enable_sem;
@@ -128,7 +131,10 @@ bool boosted;
  * minimum before wakeup to reduce speed, or -1 if unnecessary.
  */
 #define DEFAULT_TIMER_SLACK (30000)
-static int timer_slack_val = DEFAULT_TIMER_SLACK;
+static int default_timer_slack_val[] = { DEFAULT_TIMER_SLACK };
+static spinlock_t timer_slack_lock;
+static int *timer_slack_vals = default_timer_slack_val;
+static int ntimer_slack_vals = ARRAY_SIZE(default_timer_slack_val);
 
 static bool io_is_busy = true;
 
@@ -513,6 +519,10 @@ static void cpufreq_interactive_timer(unsigned long data)
 		if (new_freq < input_boost_freq)
 			new_freq = input_boost_freq;
 	}
+
+	pcpu->timer_rate = freq_to_timer_rate(new_freq);
+	pcpu->timer_slack_val = freq_to_timer_slack(new_freq);
+	pcpu->min_sample_time = freq_to_min_sample_time(new_freq);
 
 	if (pcpu->target_freq >= boosted_freq &&
 	    new_freq > pcpu->target_freq &&
@@ -1028,7 +1038,7 @@ static ssize_t show_min_sample_time(struct kobject *kobj,
 		ret += sprintf(buf + ret, "%u%s", min_sample_times[i],
 			       i & 0x1 ? ":" : " ");
 
-	sprintf(buf + ret - 1, "\n");
+	ret += sprintf(buf + --ret, "\n");
 	spin_unlock_irqrestore(&min_sample_time_lock, flags);
 	return ret;
 }
@@ -1070,7 +1080,7 @@ static ssize_t show_timer_rate(struct kobject *kobj,
 		ret += sprintf(buf + ret, "%u%s", timer_rates[i],
 			       i & 0x1 ? ":" : " ");
 
-	sprintf(buf + ret - 1, "\n");
+	ret += sprintf(buf + --ret, "\n");
 	spin_unlock_irqrestore(&timer_rate_lock, flags);
 	return ret;
 }
@@ -1136,7 +1146,7 @@ static ssize_t show_timer_slack(
 		ret += sprintf(buf + ret, "%d%s", timer_slack_vals[i],
 			       i & 0x1 ? ":" : " ");
 
-	sprintf(buf + ret - 1, "\n");
+	ret += sprintf(buf + --ret, "\n");
 	spin_unlock_irqrestore(&timer_slack_lock, flags);
 	return ret;
 }
