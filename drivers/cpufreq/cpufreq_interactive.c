@@ -467,15 +467,14 @@ static void cpufreq_interactive_timer(unsigned long data)
 
 	cpufreq_notify_utilization(pcpu->policy, cpu_load);
 
-	cpufreq_notify_utilization(pcpu->policy, cpu_load);
-
 	if (cpu_load >= go_hispeed_load)
 	{
 		if (pcpu->target_freq < boosted_freq)
 			new_freq = boosted_freq;
 		else
 		{
-			new_freq = calc_freq(pcpu, cpu_load);
+			new_freq = choose_freq(pcpu, loadadjfreq);
+
 			if (new_freq < boosted_freq)
 				new_freq = boosted_freq;
 		}
@@ -514,10 +513,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 		if (new_freq < input_boost_freq)
 			new_freq = input_boost_freq;
 	}
-
-	pcpu->timer_rate = freq_to_timer_rate(new_freq);
-	pcpu->timer_slack_val = freq_to_timer_slack(new_freq);
-	pcpu->min_sample_time = freq_to_min_sample_time(new_freq);
 
 	if (pcpu->target_freq >= boosted_freq &&
 	    new_freq > pcpu->target_freq &&
