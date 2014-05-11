@@ -128,10 +128,7 @@ bool boosted;
  * minimum before wakeup to reduce speed, or -1 if unnecessary.
  */
 #define DEFAULT_TIMER_SLACK (30000)
-static int default_timer_slack_val[] = { DEFAULT_TIMER_SLACK };
-static spinlock_t timer_slack_lock;
-static int *timer_slack_vals = default_timer_slack_val;
-static int ntimer_slack_vals = ARRAY_SIZE(default_timer_slack_val);
+static int timer_slack_val = DEFAULT_TIMER_SLACK;
 
 static bool io_is_busy = true;
 
@@ -152,9 +149,9 @@ extern u64 last_input_time;
  * sync_freq
  */
 
-static unsigned int up_threshold_any_cpu_load = 50;
+static unsigned int up_threshold_any_cpu_load = 65;
 static unsigned int sync_freq = CPU_SYNC_FREQ;
-static unsigned int up_threshold_any_cpu_freq = 1267200;
+static unsigned int up_threshold_any_cpu_freq = 1190400;
 
 
 static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
