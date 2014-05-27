@@ -62,23 +62,8 @@ static inline bool cgroup_freezing(struct task_struct *task)
 {
 	return false;
 }
-#endif /* !CONFIG_CGROUP_FREEZER */
+#endif 
 
-/*
- * The PF_FREEZER_SKIP flag should be set by a vfork parent right before it
- * calls wait_for_completion(&vfork) and reset right after it returns from this
- * function.  Next, the parent should call try_to_freeze() to freeze itself
- * appropriately in case the child has exited before the freezing of tasks is
- * complete.  However, we don't want kernel threads to be frozen in unexpected
- * places, so we allow them to block freeze_processes() instead or to set
- * PF_NOFREEZE if needed. Fortunately, in the ____call_usermodehelper() case the
- * parent won't really block freeze_processes(), since ____call_usermodehelper()
- * (the child) does a little before exec/exit and it can't be frozen before
- * waking up the parent.
- */
-
-
-/* Tell the freezer not to count the current task as freezable. */
 static inline void freezer_do_not_count(void)
 {
 	current->flags |= PF_FREEZER_SKIP;
@@ -103,11 +88,44 @@ static inline int freezer_should_skip(struct task_struct *p)
 }
 
 /*
- * These macros are intended to be used whenever you want allow a task that's
- * sleeping in TASK_UNINTERRUPTIBLE or TASK_KILLABLE state to be frozen. Note
- * that neither return any clear indication of whether a freeze event happened
- * while in this function.
+ * Like schedule_hrtimeout_range(), but should not block the freezer.  Do not
+ * call this with locks held.
  */
+static inline int freezable_schedule_hrtimeout_range(ktime_t *expires,
+		unsigned long delta, const enum hrtimer_mode mode)
+{
+	int __retval;
+	freezer_do_not_count();
+	__retval = schedule_hrtimeout_range(expires, delta, mode);
+	freezer_count();
+	return __retval;
+}
+
+/*
+ * Like freezable_schedule_timeout(), but should not block the freezer.  Do not
+ * call this with locks held.
+ */
+static inline long freezable_schedule_timeout(long timeout)
+{
+	long __retval;
+	freezer_do_not_count();
+	__retval = schedule_timeout(timeout);
+	freezer_count();
+	return __retval;
+}
+
+/*
+ * Like schedule_timeout_interruptible(), but should not block the freezer.  Do not
+ * call this with locks held.
+ */
+static inline long freezable_schedule_timeout_interruptible(long timeout)
+{
+	long __retval;
+	freezer_do_not_count();
+	__retval = schedule_timeout_interruptible(timeout);
+	freezer_count();
+	return __retval;
+}
 
 /* Like schedule(), but should not block the freezer. */
 #define freezable_schedule()						\
@@ -192,7 +210,7 @@ static inline int freezer_should_skip(struct task_struct *p)
 	__retval;							\
 })
 
-#define wait_event_freezable_exclusive(wq, condition)		\
+#define wait_event_freezable_exclusive(wq, condition)			\
 ({									\
 	int __retval;							\
 	freezer_do_not_count();						\
@@ -201,8 +219,7 @@ static inline int freezer_should_skip(struct task_struct *p)
 	__retval;							\
 })
 
-#else /* !CONFIG_FREEZER */
-
+#else 
 static inline bool frozen(struct task_struct *p) { return false; }
 static inline bool freezing(struct task_struct *p) { return false; }
 static inline void __thaw_task(struct task_struct *t) {}
@@ -245,7 +262,13 @@ static inline void set_freezable(void) {}
 #define wait_event_freezekillable(wq, condition)		\
 		wait_event_killable(wq, condition)
 
-#endif /* !CONFIG_FREEZER */
+#define freezable_schedule_hrtimeout_range(expires, delta, mode)	\
+	schedule_hrtimeout_range(expires, delta, mode)
+
+#define wait_event_freezable_exclusive(wq, condition)			\
+		wait_event_interruptible_exclusive(wq, condition)
+
+#endif 
 
 #endif	
 
