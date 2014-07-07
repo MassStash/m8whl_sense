@@ -1039,7 +1039,6 @@ static void l2cap_le_conn_ready(struct l2cap_conn *conn)
 	write_lock_bh(&list->lock);
 
 	hci_conn_hold(conn->hcon);
-	conn->hcon->disc_timeout = HCI_DISCONN_TIMEOUT;
 
 	l2cap_sock_init(sk, parent);
 	bacpy(&bt_sk(sk)->src, conn->src);
@@ -1782,7 +1781,7 @@ struct sk_buff *l2cap_create_iframe_pdu(struct sock *sk,
 					u16 sdulen, int reseg)
 {
 	struct sk_buff *skb;
-	int err = 0, count, hlen;
+	int err, count, hlen;
 	int reserve = 0;
 	struct l2cap_hdr *lh;
 	u8 fcs = l2cap_pi(sk)->fcs;
@@ -4164,6 +4163,8 @@ static struct sock *l2cap_create_connect(struct l2cap_conn *conn,
 	}
 
 	hci_conn_hold(conn->hcon);
+        /* Added with 3.4.11 patch and borked */
+	conn->hcon->disc_timeout = HCI_DISCONN_TIMEOUT; 
 
 	l2cap_sock_init(sk, parent);
 	bacpy(&bt_sk(sk)->src, conn->src);
