@@ -1,7 +1,7 @@
 /*
  *
  * Automatically generated file; DO NOT EDIT.
- * Linux/arm 3.4.0 Kernel Configuration
+ * Linux/arm 3.4.11 Kernel Configuration
  *
  */
 #define CONFIG_IP6_NF_MATCH_AH 1
