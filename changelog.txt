@@ -1,5 +1,9 @@
 --   15-07-2014
 
+project ~/AndroidDev/m8whl_kernel//
+| Commit: 9f638d4 | Title: Add dope changelog commit grabber:     Changelog script     Changelog txt created     Changelog setup default for repo setup | By: MassStash 
+| Commit: 51ab4a8 | Title: Update to changelog | By: MassStash 
+| Commit: 537fae9 | Title: Update default for reflect proper branch chagelog query | By: MassStash 
 
 --   14-07-2014
 
