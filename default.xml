@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+
+  <remote  name="main"
+           fetch="https://github.com/MassStash"
+           sync-j="4" />
+
+  <project path="/home/zaichron-lin/AndroidDev/m8whl_kernel/" name="htc_m8_whl_sense" remote="main" revision="olyndicus" groups="pdk" />
+
+</manifest>

@@ -1,0 +1,113 @@
+--   15-07-2014
+
+project htc_m8_whl_sense/
+| Commit: 3efd425 | Title: Fixes for borks due to franco commit additions mainly hotplug and interactive gov conflictions. | By: MassStash 
+| Commit: 4d0b660 | Title: stop_machine: Store task reference in a separate per cpu variable | By: Thomas Gleixner 
+| Commit: 11db4af | Title: stop_machine: Use smpboot threads | By: Thomas Gleixner 
+| Commit: 81237e3 | Title: stop_machine: Mark per cpu stopper enabled early | By: Thomas Gleixner 
+| Commit: 1505e30 | Title: kthread: Prevent unpark race which puts threads on the wrong cpu | By: Thomas Gleixner 
+| Commit: 2827948 | Title: softirq: Use hotplug thread infrastructure | By: Thomas Gleixner 
+| Commit: 8eeafdc | Title: rcu: Yield simpler | By: Thomas Gleixner 
+| Commit: 89b1fb6 | Title: rcu: Use smp_hotplug_thread facility for RCUs per-CPU kthread | By: Paul E. McKenney 
+| Commit: 61bbf45 | Title: sched: LOAD_FREQ (4*HZ+61) avoids loadavg Moire. From http://ripke.com/loadavg/moire | By: franciscofranco 
+| Commit: 79f92fb | Title: PM: Introduce suspend state PM_SUSPEND_FREEZE | By: Zhang Rui 
+| Commit: b21b289 | Title: Revert "sched_avg: add run queue averaging." | By: Francisco Franco 
+| Commit: 89838cd | Title: Input: Send events one packet at a time | By: Henrik Rydberg 
+
+--   14-07-2014
+
+project htc_m8_whl_sense/
+| Commit: 7eb4c10 | Title: cpufreq: Break out early if freq equals to target_freq | By: Stratos Karafotis 
+| Commit: a699afd | Title: cpufreq: create a helper function to get CPU utilization. Picked from @stratosk | By: franciscofranco 
+| Commit: 038c463 | Title: Fix section mismatch. | By: franciscofranco 
+| Commit: 376df8d | Title: cpufreq: add missing util on the struct. | By: franciscofranco 
+| Commit: 52f8760 | Title: cpufreq: Initial CPU utilization should be 0 | By: Stratos Karafotis 
+| Commit: da6959f | Title: cpufreq: ondemand: add util hook for my hotplug driver. | By: franciscofranco 
+| Commit: 881e38f | Title: cpufreq: Manage only online cpus | By: Viresh Kumar 
+| Commit: 257a808 | Title: block/partitions: optimize memory allocation in check_partition() | By: Ming Lei 
+| Commit: dfd1d64 | Title: Remove '+' symbol from kernel version string | By: franciscofranco 
+| Commit: 91008cb | Title: Added optimized ARM RWSEM algorithm. | By: Ezekeel 
+| Commit: b12937a | Title: writeback: Fix occasional slow sync(1) | By: Jan Kara 
+| Commit: f6f50cb | Title: audit: kiss goodbye you stupid piece of crap logging messages. | By: Francisco Franco 
+| Commit: d80fd85 | Title: Revert "Added optimized ARM RWSEM algorithm." | By: MassStash 
+| Commit: e0a68c1 | Title: Add my Hotplug driver. | By: franciscofranco 
+| Commit: 9f833fe | Title: mako_hotplug: don't need this now. | By: franciscofranco 
+| Commit: 00b4013 | Title: CPU hotplug, writeback: Don't call writeback_set_ratelimit() too often during hotplug | By: Srivatsa S. Bhat 
+| Commit: 8d0ff55 | Title: mm, vmalloc: use well-defined find_last_bit() func | By: Joonsoo Kim 
+| Commit: 8febd37 | Title: mm, vmalloc: remove useless variable in vmap_block | By: Joonsoo Kim 
+| Commit: 0393be7 | Title: cpufreq: Optimize cpufreq_frequency_table_verify() | By: Viresh Kumar 
+| Commit: ca88ae7 | Title: deadline: Allow 0ms deadline latency, increase the read speed | By: xiaobing tu 
+| Commit: 659961a | Title: mm: fix anon vma naming | By: Colin Cross 
+| Commit: a992504 | Title: irq: Set CPU affinity right on thread creation | By: Sankara Muthukrishnan 
+| Commit: 201bb50 | Title: mm: slub: Default slub_max_order to 0 | By: Mel Gorman 
+| Commit: 53064d6 | Title: msm: kgsl: Fix Z180 memory leak | By: Hareesh Gundu 
+| Commit: e6ce971 | Title: gpiomux-8974: Modify direction of suspended GPIO | By: Tirtha Kanti Ghosh 
+| Commit: 215e0f4 | Title: genalloc: Correct nbytes calculation on long boundary | By: Sunil Khatri 
+| Commit: 60780b8 | Title: cpufreq: ondemand: Remove unnecessary synchronization attempt | By: Srivatsa Vaddagiri 
+| Commit: 575486a | Title: msm: peripheral-loader: Change IOMAP_SIZE from SZ_4M to SZ_1M | By: Deepak Katragadda 
+| Commit: 5083ced | Title: ARM: fix executability of CMA mappings | By: Russell King 
+| Commit: 5bddb56 | Title: ARM: dma-mapping: don't allow DMA mappings to be marked executable | By: Russell King 
+| Commit: 4351be8 | Title: binder: NULL pointer reference | By: Paresh Nakhe 
+| Commit: bcda0b5 | Title: mmc: sdhci-msm: Correct usage of readl_poll_timeout() API | By: Matt Wagantall 
+| Commit: 4b84ad8 | Title: iopoll: Use ktime_get() instead of jiffies for timeout calculations | By: Matt Wagantall 
+| Commit: 7830c36 | Title: n_tty: Fix n_tty_write crash when echoing in raw mode | By: Peter Hurley 
+| Commit: c9eb4ef | Title: fs/super.c: sync ro remount after blocking writers | By: Andrew Ruder 
+| Commit: 59e829a | Title: pktgen: clean up ktime_t helpers | By: Daniel Borkmann 
+| Commit: cb2f56c | Title: freezer: shorten freezer sleep time using exponential backoff | By: Colin Cross 
+| Commit: 6c33e23 | Title: freezer: convert freezable helpers to freezer_do_not_count() | By: Colin Cross 
+| Commit: 93fd537 | Title: freezer: add new freezable helpers using freezer_do_not_count() | By: franciscofranco 
+| Commit: b019a5a | Title: process: fix derp. | By: franciscofranco 
+| Commit: ed3332f | Title: WCNSS: Add back comments | By: Nicholas Flintham 
+| Commit: f65600c | Title: wcnss: Add two registers to wcnss dump | By: Sameer Thalappil 
+| Commit: 0fa5bd3 | Title: Add a generic touchboost handler. | By: franciscofranco 
+| Commit: fb8db80 | Title: cpufreq: interactive: squash everything from HH. | By: franciscofranco 
+| Commit: 5616356 | Title: msm: remove any selection of RUN_QUEUE. | By: franciscofranco 
+| Commit: 96d4d82 | Title: cpufreq: interactive: for some reason listening for thread migration is panicing the Kernel, so for now, remove it. | By: franciscofranco 
+| Commit: 93f8417 | Title: workqueue: reset to HH's kk-mr1 state | By: franciscofranco 
+| Commit: 94bc7a1 | Title: workqueue: perform cpu down operations from low priority cpu_notifier() | By: Tejun Heo 
+| Commit: 3b1f4c0 | Title: workqueue: drop CPU_DYING notifier operation | By: Tejun Heo 
+| Commit: b3dc98a | Title: workqueue: ROGUE workers are UNBOUND workers | By: Tejun Heo 
+| Commit: 16af20e | Title: workqueue: use mutex for global_cwq manager exclusion | By: Tejun Heo 
+| Commit: eb6235a | Title: workqueue: drop @bind from create_worker() | By: Tejun Heo 
+| Commit: 944deec | Title: workqueue: reimplement CPU online rebinding to handle idle workers | By: Tejun Heo 
+| Commit: bd9ae26 | Title: workqueue: don't butcher idle workers on an offline CPU | By: Tejun Heo 
+| Commit: 38685aa | Title: workqueue: remove CPU offline trustee | By: Tejun Heo 
+| Commit: b5cd522 | Title: workqueue: simplify CPU hotplug code | By: Tejun Heo 
+| Commit: e9c792d | Title: af_unix: speedup /proc/net/unix /proc/net/unix has quadratic behavior, and can hold unix_table_lock for a while if high number of unix sockets are alive. (90 ms for 200k sockets...) | By: mrg666 
+| Commit: a13ca4b | Title: smp: patches from mainline 3.5 to hopefully help with hotplug efficiency | By: Thomas Gleixner 
+| Commit: ab05e16 | Title: softirq: reduce latencies | By: Eric Dumazet 
+| Commit: 0a1d568 | Title: cpu: fix merge derp. | By: franciscofranco 
+| Commit: b865258 | Title: PM / devfreq: Fix simple_ondemand crashing | By: myfluxi 
+| Commit: 907db57 | Title: PM: devfreq: Always reflect a change of polling interval | By: myfluxi 
+| Commit: 8ee363a | Title: PM / devfreq: Add a new target flag for the performance governor | By: Vladimir Razgulin 
+| Commit: f2a3c15 | Title: cpufreq: add generic get_cpuidle_time to the cpufreq headers | By: franciscofranco 
+| Commit: 58f8cc5 | Title: devfreq: governor_cpubw_hwmon: Remove sample_ms and fix round up of freq | By: Saravana Kannan 
+| Commit: 3d2f195 | Title: devfreq: governor_cpubw_hwmon: Fix use of decay_rate | By: Saravana Kannan 
+| Commit: 3fe22f8 | Title: kthread: Implement park/unpark facility | By: Thomas Gleixner 
+| Commit: ee5ae63 | Title: smp, idle: Allocate idle thread for each possible cpu during boot | By: Suresh Siddha 
+| Commit: f9a5ff7 | Title: smpboot, idle: Optimize calls to smp_processor_id() in idle_threads_init() | By: Srivatsa S. Bhat 
+| Commit: e2fc95a | Title: smpboot, idle: Fix comment mismatch over idle_threads_init() | By: Srivatsa S. Bhat 
+| Commit: 7a4e389 | Title: smpboot: Provide infrastructure for percpu hotplug threads | By: Thomas Gleixner 
+| Commit: f1f4ef0 | Title: hotplug: Fix UP bug in smpboot hotplug code | By: Paul E. McKenney 
+| Commit: 58bed4f | Title: smpboot: Allow selfparking per cpu threads | By: Thomas Gleixner 
+| Commit: 1abfbdd | Title: Turn off ondemand, lionheart, and conservative in preference of Franco hotplug driver | By: MassStash 
+
+--   13-07-2014
+
+project htc_m8_whl_sense/
+| Commit: 3c19532 | Title: msm8974: Adapt memutils optimizations from msm8960pro | By: Pranav Vashi 
+
+--   12-07-2014
+
+
+--   11-07-2014
+
+project htc_m8_whl_sense/
+| Commit: 57e9a0b | Title: Add -Wno-unused-variable to makefile and head off future build borks, and rm built BS from repo not needed | By: MassStash 
+
+--   10-07-2014
+
+
+--   09-07-2014
+
+
