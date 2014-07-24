@@ -6,7 +6,7 @@
 
 #Kernel path
 kernelDir1="/home/zaichron-lin/AndroidDev/m8whl_kernel" #( Example /home/user/path )
-kernelDir2="Path to kernel 2" #( Example /home/user/path )
+kernelDir2="/home/zaichron-lin/AndroidDev/m8whl_kernel" #( Example /home/user/path )
 kernelDir3="Path to kernel 3" #( Example /home/user/path )
 #Toolchain path
 toolchainDir="/home/zaichron-lin/AndroidDev/AAtoolchains/linaro_toolchains_2014/arm-cortex_a15-linux-gnueabihf-linaro_4.9.1-2014.07" #( Example /home/user/path )
@@ -62,29 +62,6 @@ select opt in $OPTIONS; do
      ./build
     fi
 done
-
-#Setup proper path to rid missing gcc warning
-PATH=$PATH:/home/zaichron-lin/AndroidDev/AAtoolchains/linaro_toolchains_2014/arm-cortex_a15-linux-gnueabihf-linaro_4.9.1-2014.07/bin
-
-#xxx= Your config name
-echo
-echo
-echo " Run defconfig "
-make ARCH=arm elementalx_defconfig
-#Keep thangs sqeaky
-echo
-echo
-echo " Makin thangs squeaky clean "
-make clean
-#Change arm-eabi- to what you current toolchain uses default is gcc4.6 & gcc4.7 toolchains
-echo
-echo
-echo " Set to arm at 375, for about 20 to 40 minutes "
-make ARCH=arm CROSS_COMPILE=$toolchainDir/bin/arm-cortex_a15-linux-gnueabihf- -j$threads
-
-echo
-echo
-echo " Done compiling your kernel bitch "
 
 echo
 echo
@@ -144,4 +121,3 @@ echo
 echo
 echo " Check $exportDir for $kernelName-$now.zip and repeat "
 sleep 10
-./build
