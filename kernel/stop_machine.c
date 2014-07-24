@@ -349,7 +349,6 @@ static int __init cpu_stop_init(void)
 		spin_lock_init(&stopper->lock);
 		INIT_LIST_HEAD(&stopper->works);
 	}
-	BUG_ON(smpboot_register_percpu_thread(&cpu_stop_threads));
 	stop_machine_initialized = true;
 	return 0;
 }

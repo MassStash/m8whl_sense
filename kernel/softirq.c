@@ -842,8 +842,6 @@ static __init int spawn_ksoftirqd(void)
 {
 	register_cpu_notifier(&cpu_nfb);
 
-	BUG_ON(smpboot_register_percpu_thread(&softirq_threads));
-
 	return 0;
 }
 early_initcall(spawn_ksoftirqd);
