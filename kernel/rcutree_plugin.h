@@ -1472,22 +1472,6 @@ static void rcu_kthread_do_work(void)
 	rcu_preempt_do_callbacks();
 }
 
-<<<<<<< HEAD
-static void rcu_cpu_kthread_setup(unsigned int cpu)
-{
-	struct sched_param sp;
-
-	sp.sched_priority = RCU_KTHREAD_PRIO;
-	sched_setscheduler_nocheck(current, SCHED_FIFO, &sp);
-}
-
-static void rcu_cpu_kthread_park(unsigned int cpu)
-{
-	per_cpu(rcu_cpu_kthread_status, cpu) = RCU_KTHREAD_OFFCPU;
-}
-
-static int rcu_cpu_kthread_should_run(unsigned int cpu)
-=======
 /*
  * Set the specified CPU's kthread to run RT or not, as specified by
  * the to_rt argument.  The CPU-hotplug locks are held, so the task
@@ -1525,7 +1509,6 @@ static void rcu_cpu_kthread_setrt(int cpu, int to_rt)
  * Caller must disable bh.  This function can momentarily enable it.
  */
 static int rcu_cpu_kthread_should_stop(int cpu)
->>>>>>> rcu: Yield simpler
 {
 	return __get_cpu_var(rcu_cpu_has_work);
 }
@@ -1553,19 +1536,6 @@ static void rcu_cpu_kthread(unsigned int cpu)
 		if (work)
 			rcu_kthread_do_work();
 		local_bh_enable();
-<<<<<<< HEAD
-		if (*workp == 0) {
-			trace_rcu_utilization("End CPU kthread@rcu_wait");
-			*statusp = RCU_KTHREAD_WAITING;
-			return;
-		}
-	}
-	*statusp = RCU_KTHREAD_YIELDING;
-	trace_rcu_utilization("Start CPU kthread@rcu_yield");
-	schedule_timeout_interruptible(2);
-	trace_rcu_utilization("End CPU kthread@rcu_yield");
-	*statusp = RCU_KTHREAD_WAITING;
-=======
 		if (*workp != 0)
 			spincnt++;
 		else
@@ -1627,7 +1597,6 @@ static int __cpuinit rcu_spawn_one_cpu_kthread(int cpu)
 	per_cpu(rcu_cpu_kthread_task, cpu) = t;
 	wake_up_process(t); /* Get to TASK_INTERRUPTIBLE quickly. */
 	return 0;
->>>>>>> rcu: Yield simpler
 }
 
 /*
@@ -1663,18 +1632,6 @@ static void rcu_boost_kthread_setaffinity(struct rcu_node *rnp, int outgoingcpu)
 	free_cpumask_var(cm);
 }
 
-<<<<<<< HEAD
-static struct smp_hotplug_thread rcu_cpu_thread_spec = {
-	.store			= &rcu_cpu_kthread_task,
-	.thread_should_run	= rcu_cpu_kthread_should_run,
-	.thread_fn		= rcu_cpu_kthread,
-	.thread_comm		= "rcuc/%u",
-	.setup			= rcu_cpu_kthread_setup,
-	.park			= rcu_cpu_kthread_park,
-};
-
-=======
->>>>>>> rcu: Yield simpler
 /*
  * Spawn all kthreads -- called as soon as the scheduler is running.
  */
@@ -1703,15 +1660,10 @@ static void __cpuinit rcu_prepare_kthreads(int cpu)
 	struct rcu_node *rnp = rdp->mynode;
 
 	/* Fire up the incoming CPU's kthread and leaf rcu_node kthread. */
-<<<<<<< HEAD
-	if (rcu_scheduler_fully_active)
-		(void)rcu_spawn_one_boost_kthread(rcu_state, rnp);
-=======
 	if (rcu_scheduler_fully_active) {
 		(void)rcu_spawn_one_cpu_kthread(cpu);
 		(void)rcu_spawn_one_boost_kthread(rcu_state, rnp);
 	}
->>>>>>> rcu: Yield simpler
 }
 
 #else /* #ifdef CONFIG_RCU_BOOST */
@@ -1735,9 +1687,6 @@ static void rcu_preempt_boost_start_gp(struct rcu_node *rnp)
 {
 }
 
-<<<<<<< HEAD
-static void rcu_boost_kthread_setaffinity(struct rcu_node *rnp, int outgoingcpu)
-=======
 #ifdef CONFIG_HOTPLUG_CPU
 
 static void rcu_stop_cpu_kthread(int cpu)
@@ -1751,7 +1700,6 @@ static void rcu_boost_kthread_setaffinity(struct rcu_node *rnp, int outgoingcpu)
 }
 
 static void rcu_cpu_kthread_setrt(int cpu, int to_rt)
->>>>>>> rcu: Yield simpler
 {
 }
 
